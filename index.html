@@ -1,0 +1,28 @@
+<html>
+    <head>
+        <script>
+            const webSocket = new WebSocket('ws://localhost:8888/websocket');
+
+            webSocket.onopen = event => {
+                alert('onopen');
+                webSocket.send("Hello Web Socket!");
+            };
+
+            webSocket.onmessage = event => {
+                alert('onmessage, ' + event.data);
+            };
+
+            webSocket.onclose = event => {
+                alert('onclose');
+            };
+        </script>
+    </head>
+    <body>
+        Имя input
+
+        Текст textarea
+
+        Бутстрап 4.0
+
+    </body>
+</html>
