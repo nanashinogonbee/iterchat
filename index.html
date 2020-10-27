@@ -14,7 +14,11 @@
       </h1>
       <div class="field">
       <div class="control is-small">
-        <textarea id="messages" name="messages" class="textarea is-small" readonly placeholder="Small loading textarea"></textarea>
+        <textarea id="messages" name="messages" class="textarea is-small" readonly placeholder="Small loading textarea">
+          {% for message in messages %}
+             {{ message['message'] }}
+          {% end %}
+        </textarea>
       </div>
     </div>
       <form action="/add/message" id="newmessageform" method="POST">
@@ -29,23 +33,26 @@
           <div class="control">
             <textarea id="msgtxt" name="msgtxt" class="textarea is-primary" placeholder="Primary textarea"></textarea>
           </div>
-          <div class="field">
-            <div class="control">
-              <button type="submit" class="button is-primary">Submit</button>
-            </div>
+        </div>
+        <div class="field">
+          <div class="control">
+            <button type="submit" class="button is-primary">Submit</button>
           </div>
         </div>
+        
       </form>
     </div>
   </section>
   </body>
   <script src="//ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"> </script>
+  
   <script>
     $(function() {
         console.log( "ready!" );
         let webSocket = new WebSocket('ws://localhost:8888/websocket');
 
         webSocket.onopen = event => {
+          // webSocket.send('test')
           console.log('onopen');
           
         };
@@ -58,6 +65,15 @@
         webSocket.onclose = event => {
             console.log('onclose');
         };
+        
+        const form = document.querySelector('#newmessageform');
+
+        form.addEventListener('submit', function() {
+
+          console.log('on submit');
+
+        });
+
 
         $('#newmessageform').submit(function(event) {
           const nickname = document.querySelector('#username').value;
@@ -65,7 +81,7 @@
           const data = nickname + " says: " + msgtxt;
           console.log('Send new message');
           webSocket.send(data);
-          
+
           event.preventDefault();
         });
 
