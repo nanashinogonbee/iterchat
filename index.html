@@ -59,6 +59,7 @@
 
         webSocket.onmessage = event => {
             $('#messages').append(event.data+"\n");
+            $('#messages').scrollHeight;
             console.log('onmessage, ' + event.data);
         };
 

@@ -4,32 +4,33 @@ import tornado.websocket
 
 
 def singleton(cls):
-	instances = {}
+    instances = {}
 
-	import functools
+    import functools
 
-	@functools.wraps(cls)
-	def get_instance(*args, **kwargs):
-		if cls not in instances:
-			instances[cls] = cls(*args, **kwargs)
-		return instances[cls]
-	return get_instance
+    @functools.wraps(cls)
+    def get_instance(*args, **kwargs):
+        if cls not in instances:
+            instances[cls] = cls(*args, **kwargs)
+        return instances[cls]
+    return get_instance
 
 
 @singleton
 class MessagesBuffer():
 
-	def __init__(self):
-		from collections import deque
-		self.__messages = deque(maxlen=50)
+    def __init__(self):
+        from collections import deque
+        
+        self.__messages = deque(maxlen=50)
 
 
-	def add_message(self, message):
-		self.__messages.append(message)
+    def add_message(self, message):
+        self.__messages.append(message)
 
 
-	def get_messages(self):
-		return self.__messages
+    def get_messages(self):
+        return self.__messages
 
 
 
@@ -42,42 +43,45 @@ globalmessagebuffer.add_message({"id": "0", "message": "Say hello to everybody!"
 
 
 class IndexHandler(tornado.web.RequestHandler):
-	# отображать какую-то индексную страницу
-	def get(self):
-		self.render("index.html", messages = globalmessagebuffer.get_messages())
+    # отображать какую-то индексную страницу
+    def get(self):
+        self.render("index.html", messages = globalmessagebuffer.get_messages())
 
 
 
 class EchoWebSocketHandler(tornado.websocket.WebSocketHandler):
-	
-	messages = {}
+    
+    def open(self):
+        print('websocket is opened')
 
-	def open(self):
-		print('websocket is opened')
+    def on_message(self, message):
 
-	def on_message(self, message):
+        import uuid
 
-		import uuid
+        id = uuid.uuid4()
+        new_message = {'id': id.hex,  'message': message}
+        
+        globalmessagebuffer.add_message(new_message)
+        print(f"{ new_message.get('id', 'Unknown ID') } write {new_message.get('message', 'Empty message')}")
+        self.write_message(f" Message was sent: {message} ")
 
-		id = uuid.uuid4()
-
-		# import time
-		# key = time.strftime("%Y%m%d%H%M%S")
-		new_message = {'id': id.hex,  'message': message}
-		
-		globalmessagebuffer.add_message(new_message)
-		print(f"{ new_message.get('id', 'Unknown ID') } write {new_message.get('message', 'Empty message')}")
-		self.write_message(f" Message was sent: {message} ")
-
-	def on_close(self):
-		print('websocket is closed')
+    def on_close(self):
+        print('websocket is closed')
 
 
+class MessageUpdatesHandler(tornado.web.RequestHandler):
+    """docstring for MessageUpdatesHandler"""
+
+    pass
+
+
+        
 
 def make_app():
     return tornado.web.Application([
         (r"/", IndexHandler),
         (r"/websocket", EchoWebSocketHandler),
+        (r"/message/update", MessageUpdatesHandler),
     ], debug = True)
 
 
