@@ -3,13 +3,25 @@ import tornado.web
 import tornado.websocket
 
 
+def singleton(cls):
+	instances = {}
+
+	import functools
+
+	@functools.wraps(cls)
+	def get_instance(*args, **kwargs):
+		if cls not in instances:
+			instances[cls] = cls(*args, **kwargs)
+		return instances[cls]
+	return get_instance
+
+
+@singleton
 class MessagesBuffer():
 
-	def __init__(self, messages):
-
-		self.__messages = []
-		for m in messages:
-			self.__messages.append(m)
+	def __init__(self):
+		from collections import deque
+		self.__messages = deque(maxlen=50)
 
 
 	def add_message(self, message):
@@ -21,7 +33,12 @@ class MessagesBuffer():
 
 
 
-globalmessagebuffer = MessagesBuffer([ {"message":"The chat was started."}, {"message": "Say hello to everybody!"} ])
+globalmessagebuffer = MessagesBuffer()
+
+globalmessagebuffer.add_message({"id": "0", "message":"The chat was started."}) 
+globalmessagebuffer.add_message({"id": "0", "message": "Say hello to everybody!"})
+
+# globalmessagebuffer или MessageBuffer() -> обращаемся к одному и тому же объекту.
 
 
 class IndexHandler(tornado.web.RequestHandler):
@@ -39,12 +56,17 @@ class EchoWebSocketHandler(tornado.websocket.WebSocketHandler):
 		print('websocket is opened')
 
 	def on_message(self, message):
+
+		import uuid
+
+		id = uuid.uuid4()
+
 		# import time
 		# key = time.strftime("%Y%m%d%H%M%S")
-		new_message = {'message': message}
+		new_message = {'id': id.hex,  'message': message}
 		
 		globalmessagebuffer.add_message(new_message)
-
+		print(f"{ new_message.get('id', 'Unknown ID') } write {new_message.get('message', 'Empty message')}")
 		self.write_message(f" Message was sent: {message} ")
 
 	def on_close(self):
