@@ -73,7 +73,7 @@ class EchoWebSocketHandler(tornado.websocket.WebSocketHandler):
         
         globalmessagebuffer.add_message(new_message)
 
-        print(f"Message #'{ new_message.get('id', 'Unknown ID') } {new_message.get('message', 'Empty message')}")
+        print(f"Message #{ new_message.get('id', 'Unknown ID') } {new_message.get('message', 'Empty message')}")
         self.write_message(f"{new_message}")
 
     def on_close(self):
@@ -87,9 +87,8 @@ class MessageUpdatesHandler(tornado.web.RequestHandler):
 
         cursor = self.get_argument("cursor", None)
 
-        print(f"cursor {cursor} ")
+        
         messages = globalmessagebuffer.get_messages_since(cursor)
-        print(messages)
 
         while not messages:
             self.wait_future = globalmessagebuffer.cond.wait()
@@ -103,6 +102,8 @@ class MessageUpdatesHandler(tornado.web.RequestHandler):
         if self.request.connection.stream.closed():
             return
 
+        print(f"cursor {cursor} ")
+        print(messages)
         self.write(dict(messages=messages))
 
     def on_connection_close(self):
