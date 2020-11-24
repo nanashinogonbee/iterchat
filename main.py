@@ -1,4 +1,7 @@
+import asyncio
+
 import tornado.ioloop
+import tornado.locks
 import tornado.web
 import tornado.websocket
 
@@ -17,29 +20,37 @@ def singleton(cls):
 
 
 @singleton
-class MessagesBuffer():
+class MessagesBuffer():  
 
     def __init__(self):
-        from collections import deque
-        
-        self.__messages = deque(maxlen=50)
+        self.cond = tornado.locks.Condition()
+        self.__messages = []
+        self.__messages_size = 500        
 
 
     def add_message(self, message):
         self.__messages.append(message)
 
+        if len(self.__messages) > self.__messages_size:
+            self.__messages = self.messages[-self.__messages_size]
+        self.cond.notify_all()
+
 
     def get_messages(self):
         return self.__messages
 
+    def get_messages_since(self, cursor):
+        results = []
+
+        for msg in reversed(self.__messages):
+            if msg['id'] == cursor:
+                break
+            results.append(msg)
+        results.reverse()
+        return results
 
 
 globalmessagebuffer = MessagesBuffer()
-
-globalmessagebuffer.add_message({"id": "0", "message":"The chat was started."}) 
-globalmessagebuffer.add_message({"id": "0", "message": "Say hello to everybody!"})
-
-# globalmessagebuffer или MessageBuffer() -> обращаемся к одному и тому же объекту.
 
 
 class IndexHandler(tornado.web.RequestHandler):
@@ -54,16 +65,16 @@ class EchoWebSocketHandler(tornado.websocket.WebSocketHandler):
     def open(self):
         print('websocket is opened')
 
+
     def on_message(self, message):
-
         import uuid
-
         id = uuid.uuid4()
-        new_message = {'id': id.hex,  'message': message}
+        new_message = {'id': str(id),  'message': message}
         
         globalmessagebuffer.add_message(new_message)
-        print(f"{ new_message.get('id', 'Unknown ID') } write {new_message.get('message', 'Empty message')}")
-        self.write_message(f" Message was sent: {message} ")
+
+        print(f"Message #'{ new_message.get('id', 'Unknown ID') } {new_message.get('message', 'Empty message')}")
+        self.write_message(f"{new_message}")
 
     def on_close(self):
         print('websocket is closed')
@@ -72,10 +83,31 @@ class EchoWebSocketHandler(tornado.websocket.WebSocketHandler):
 class MessageUpdatesHandler(tornado.web.RequestHandler):
     """docstring for MessageUpdatesHandler"""
 
-    pass
+    async def post(self):
 
+        cursor = self.get_argument("cursor", None)
 
-        
+        print(f"cursor {cursor} ")
+        messages = globalmessagebuffer.get_messages_since(cursor)
+        print(messages)
+
+        while not messages:
+            self.wait_future = globalmessagebuffer.cond.wait()
+            try:
+                await self.wait_future
+            except asyncio.CancelledError:
+                return 
+
+            messages = globalmessagebuffer.get_messages_since(cursor)
+
+        if self.request.connection.stream.closed():
+            return
+
+        self.write(dict(messages=messages))
+
+    def on_connection_close(self):
+        self.wait_future.cancel()
+
 
 def make_app():
     return tornado.web.Application([
@@ -86,7 +118,6 @@ def make_app():
 
 
 if __name__ == "__main__":
-#python3 main.py or python main.py
     app = make_app()
     app.listen(8888)
     tornado.ioloop.IOLoop.current().start()
