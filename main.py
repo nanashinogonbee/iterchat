@@ -1,4 +1,5 @@
 import asyncio
+import collections
 
 import tornado.ioloop
 import tornado.locks
@@ -24,15 +25,12 @@ class MessagesBuffer():
 
     def __init__(self):
         self.cond = tornado.locks.Condition()
-        self.__messages = []
-        self.__messages_size = 500        
+        self.__messages = collections.deque(maxlen=50)
 
 
     def add_message(self, message):
         self.__messages.append(message)
 
-        if len(self.__messages) > self.__messages_size:
-            self.__messages = self.messages[-self.__messages_size]
         self.cond.notify_all()
 
 
@@ -56,12 +54,11 @@ globalmessagebuffer = MessagesBuffer()
 class IndexHandler(tornado.web.RequestHandler):
     # отображать какую-то индексную страницу
     def get(self):
-        self.render("index.html", messages = globalmessagebuffer.get_messages())
+        self.render("index.html", messages=globalmessagebuffer.get_messages())
 
 
 
 class EchoWebSocketHandler(tornado.websocket.WebSocketHandler):
-    
     def open(self):
         print('websocket is opened')
 
@@ -69,7 +66,12 @@ class EchoWebSocketHandler(tornado.websocket.WebSocketHandler):
     def on_message(self, message):
         import uuid
         id = uuid.uuid4()
-        new_message = {'id': str(id),  'message': message}
+        new_message = {
+            'id': str(id),
+            'from_id': uuid.getnode(),
+            'nick': message.split(': ', 1)[0],
+            'message': message.split(': ', 1)[1]
+            }
         
         globalmessagebuffer.add_message(new_message)
 
@@ -82,12 +84,8 @@ class EchoWebSocketHandler(tornado.websocket.WebSocketHandler):
 
 class MessageUpdatesHandler(tornado.web.RequestHandler):
     """docstring for MessageUpdatesHandler"""
-
     async def post(self):
-
         cursor = self.get_argument("cursor", None)
-
-        
         messages = globalmessagebuffer.get_messages_since(cursor)
 
         while not messages:
@@ -110,11 +108,24 @@ class MessageUpdatesHandler(tornado.web.RequestHandler):
         self.wait_future.cancel()
 
 
+class StatsHandler(tornado.web.RequestHandler):
+    def get(self):
+        messages = globalmessagebuffer.get_messages()
+        stats = {}
+        for msg in messages:
+            stats.update({msg['nick']: 0})
+        for msg in messages:
+            stats[msg['nick']] += 1
+        stats = [{'nick': k, 'qty': v} for k, v in stats.items()]
+        self.render("stats.html", stats=stats)
+
+
 def make_app():
     return tornado.web.Application([
         (r"/", IndexHandler),
         (r"/websocket", EchoWebSocketHandler),
         (r"/message/update", MessageUpdatesHandler),
+        (r"/stat", StatsHandler),
     ], debug = True)
 
 

@@ -1,0 +1,17 @@
+<head><title>stats</title></head>
+<body>
+	<div class="stats">
+	<table style="border: 1px solid black, border-collapse: collapse" rules="all">
+		<tr align="center">
+			<th>nickname</th>
+			<th>messages</th>
+		</tr>
+		{% for user in stats %}
+		<tr align="center">
+			<td>{{ user['nick'] }}</td>
+			<td>{{ user['qty'] }}</td>
+		</tr>
+		{% end %}
+	</table>
+	</div>
+</body>
